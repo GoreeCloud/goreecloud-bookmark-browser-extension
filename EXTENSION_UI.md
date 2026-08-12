@@ -16,7 +16,7 @@ The browser companion should remain focused on fast capture rather than reproduc
 
 ## Glaze UI implementation
 
-The first visual-alignment pass introduces:
+The visual-alignment pass introduces:
 
 - Layered card surfaces with restrained translucency and softened depth.
 - A GoreeCloud Bookmarks header that uses the existing original extension asset.
@@ -27,6 +27,11 @@ The first visual-alignment pass introduces:
 - Reduced-motion handling through `prefers-reduced-motion`.
 - A Glaze UI onboarding state for an extension that has not yet been configured.
 - A structured connection/settings page with explicit instance and authentication sections.
+- A redesigned collection picker that preserves the existing collection-selection behavior while using theme-aware surfaces and keyboard-visible controls.
+- A clearer optional-details section for tags, title, and the bookmark note/description field.
+- A touch-friendly page-image capture control.
+- A dedicated duplicate-bookmark notice that opens the existing bookmark search result.
+- A Glaze UI capture/upload progress overlay with polite live-region status.
 - Clear wording that extension settings do not publish or deploy a production service.
 
 ## Preserved behavior
@@ -37,7 +42,7 @@ This visual pass does not intentionally change:
 - Bookmark creation requests.
 - Collection loading or selection semantics.
 - Tag loading, searching, or selection semantics.
-- Duplicate-link detection.
+- Duplicate-link detection or its existing search destination.
 - Optional browser image capture behavior.
 - Username/password session exchange behavior.
 - API-key authentication behavior.
