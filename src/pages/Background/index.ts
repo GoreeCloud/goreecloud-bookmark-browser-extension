@@ -30,7 +30,12 @@ async function savePageFromContextMenu(
   }
 
   const configured = await isConfigured();
-  if (!configured || !tab?.url || !tab.title) {
+  if (
+    !configured ||
+    !tab?.url ||
+    !/^https?:\/\//.test(tab.url) ||
+    !tab.title
+  ) {
     return;
   }
 
