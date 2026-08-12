@@ -10,6 +10,10 @@ import OnClickData = chrome.contextMenus.OnClickData;
 import OnInputEnteredDisposition = chrome.omnibox.OnInputEnteredDisposition;
 
 const browser = getBrowser();
+const tabsNavigation = browser.tabs as unknown as {
+  update: (properties: { url: string }) => Promise<unknown> | void;
+  create: (properties: { url: string; active?: boolean }) => Promise<unknown> | void;
+};
 
 browser.contextMenus.onClicked.addListener(async (info, tab) => {
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -116,13 +120,13 @@ if (hasAPI('omnibox.onInputStarted')) {
 
       switch (disposition) {
         case 'currentTab':
-          await browser.tabs.update({ url });
+          await tabsNavigation.update({ url });
           break;
         case 'newForegroundTab':
-          await browser.tabs.create({ url });
+          await tabsNavigation.create({ url });
           break;
         case 'newBackgroundTab':
-          await browser.tabs.create({ url, active: false });
+          await tabsNavigation.create({ url, active: false });
           break;
       }
     },
