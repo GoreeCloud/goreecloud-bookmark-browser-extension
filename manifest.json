@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "minimum_chrome_version": "121",
-  "name": "Linkwarden",
-  "description": "The browser extension for Linkwarden.",
-  "homepage_url": "https://linkwarden.app/",
+  "name": "GoreeCloud Bookmarks",
+  "description": "The browser extension for GoreeCloud Bookmarks.",
+  "homepage_url": "https://github.com/GoreeCloud/goreecloud-bookmarks",
   "version": "1.5.4",
   "action": {
     "default_popup": "index.html",
@@ -13,7 +13,7 @@
       "48": "48.png",
       "128": "128.png"
     },
-    "default_title": "Linkwarden"
+    "default_title": "GoreeCloud Bookmarks"
   },
   "options_ui": {
     "page": "src/pages/Options/options.html",
