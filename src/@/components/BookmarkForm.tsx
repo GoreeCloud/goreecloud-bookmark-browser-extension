@@ -222,6 +222,9 @@ const BookmarkForm = () => {
     );
   }, [tagsData]);
 
+  const hasCollectionError = Boolean(collectionError);
+  const hasTagsError = Boolean(tagsError);
+
   const collectionItems = Array.isArray(collections)
     ? collections.map(
         (collection: {
@@ -259,7 +262,7 @@ const BookmarkForm = () => {
           onSubmit={handleSubmit((values) => onSubmit(values))}
           className="space-y-4"
         >
-          {collectionError && (
+          {hasCollectionError && (
             <div
               className="rounded-xl border border-destructive/25 bg-destructive/8 px-3 py-2.5 text-xs leading-5 text-destructive"
               role="alert"
@@ -400,7 +403,7 @@ const BookmarkForm = () => {
                 </p>
               </div>
 
-              {tagsError && (
+              {hasTagsError && (
                 <p className="text-xs text-destructive" role="alert">
                   Tags could not be loaded from the configured instance.
                 </p>
@@ -420,7 +423,7 @@ const BookmarkForm = () => {
                         hasNextPage={false}
                         isFetchingNextPage={false}
                       />
-                    ) : tagsError ? (
+                    ) : hasTagsError ? (
                       <TagInput
                         onChange={field.onChange}
                         value={[{ name: 'Not found' }]}
