@@ -71,7 +71,11 @@ const drawImagesOnCanvas = async (
   });
 };
 
-async function executeScript(tabId: number, func: any, args: any[] = []) {
+async function executeScript<TArgs extends unknown[], TResult>(
+  tabId: number,
+  func: (...args: TArgs) => TResult,
+  args: TArgs = [] as unknown as TArgs
+): Promise<TResult | undefined> {
   if (
     typeof chrome !== 'undefined' &&
     typeof chrome.scripting !== 'undefined'
@@ -81,16 +85,22 @@ async function executeScript(tabId: number, func: any, args: any[] = []) {
       func,
       args,
     });
-    return results[0]?.result;
+    return results[0]?.result as TResult | undefined;
   }
 
   const results = await browser.tabs.executeScript(tabId, {
-    code: `(${func})(${args.map((arg) => JSON.stringify(arg)).join(',')})`,
+    code: `(${func.toString()})(${args
+      .map((arg) => JSON.stringify(arg))
+      .join(',')})`,
   });
-  return results[0];
+  return results[0] as TResult | undefined;
 }
 
-async function safeExecuteScript(tabId: number, func: any, args: any[] = []) {
+async function safeExecuteScript<TArgs extends unknown[], TResult>(
+  tabId: number,
+  func: (...args: TArgs) => TResult,
+  args: TArgs = [] as unknown as TArgs
+) {
   try {
     await executeScript(tabId, func, args);
   } catch {
@@ -166,13 +176,13 @@ async function captureFullPageScreenshot(): Promise<Blob> {
       })
       .map((el) => ({
         selector: el.tagName.toLowerCase() + (el.id ? `#${el.id}` : ''),
-        position: (el as any).style.position,
+        position: (el as HTMLElement).style.position,
       }));
 
     elements.forEach((el) => {
       const cs = getComputedStyle(el);
       if (['fixed', 'sticky'].includes(cs.position)) {
-        (el as any).style.position = 'relative';
+        (el as HTMLElement).style.position = 'relative';
       }
     });
 
@@ -245,7 +255,7 @@ async function captureFullPageScreenshot(): Promise<Blob> {
 
     await executeScript(
       tab.id,
-      (pos: any) => {
+      (pos: number) => {
         document.documentElement.style.scrollBehavior = 'auto';
         window.scrollTo(0, pos);
       },
@@ -274,7 +284,7 @@ async function captureFullPageScreenshot(): Promise<Blob> {
   );
 
   await safeExecuteScript(tab.id, removeHideScrollbarClass);
-  await safeExecuteScript(tab.id, restoreFixedElements, [originalStyles]);
+  await safeExecuteScript(tab.id, restoreFixedElements, [originalStyles ?? []]);
   await safeExecuteScript(tab.id, removeDisableSmoothScrollbarClass);
 
   return resultBlob;
