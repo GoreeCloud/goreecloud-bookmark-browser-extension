@@ -66,13 +66,16 @@ export function isSafari(): boolean {
 }
 
 export function hasAPI(api: string): boolean {
-  const b = getBrowser();
-  let obj: any = b;
+  let obj: unknown = getBrowser();
+
   for (const part of api.split('.')) {
-    if (!obj || typeof obj[part] === 'undefined') return false;
-    obj = obj[part];
+    if (typeof obj !== 'object' || obj === null || !(part in obj)) {
+      return false;
+    }
+    obj = (obj as Record<string, unknown>)[part];
   }
-  return true;
+
+  return typeof obj !== 'undefined';
 }
 
 export async function updateBadge(tabId: number | undefined) {
