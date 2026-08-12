@@ -26,7 +26,15 @@ import { toast } from '../../hooks/use-toast.ts';
 import { Toaster } from './ui/Toaster.tsx';
 import { getCollections } from '../lib/actions/collections.ts';
 import { getShouldUseTagSearch, getTags } from '../lib/actions/tags.ts';
-import { ExternalLink, X } from 'lucide-react';
+import {
+  ExternalLink,
+  FolderOpen,
+  Image as ImageIcon,
+  Loader2,
+  Save,
+  SlidersHorizontal,
+  X,
+} from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/Popover.tsx';
 import { CaretSortIcon } from '@radix-ui/react-icons';
 import {
@@ -88,7 +96,7 @@ const BookmarkForm = () => {
         uploadImage,
         values,
         setState,
-        config?.apiKey as string
+        config?.apiKey as string,
       );
 
       return;
@@ -114,17 +122,15 @@ const BookmarkForm = () => {
       return;
     },
     onSuccess: () => {
-      // Update badge to show link is saved
       getCurrentTabInfo().then(({ id }) => {
         updateBadge(id);
       });
       setTimeout(() => {
         window.close();
-        // I want to show some confirmation before it's closed...
       }, 3500);
       toast({
-        title: 'Success',
-        description: 'Link saved successfully!',
+        title: 'Saved',
+        description: 'Page saved to GoreeCloud Bookmarks.',
       });
     },
   });
@@ -156,27 +162,6 @@ const BookmarkForm = () => {
 
   const { handleSubmit, control } = form;
 
-  // useEffect(() => {
-  //   const syncBookmarks = async () => {
-  //     try {
-  //       const { syncBookmarks, baseUrl, defaultCollection } = await getConfig();
-  //       form.setValue('collection', {
-  //         name: defaultCollection,
-  //       });
-  //       if (!syncBookmarks) {
-  //         return;
-  //       }
-  //       if (await isConfigured()) {
-  //         await saveLinksInCache(baseUrl);
-  //         await syncLocalBookmarks(baseUrl);
-  //       }
-  //     } catch (error) {
-  //       console.error(error);
-  //     }
-  //   };
-  //   syncBookmarks();
-  // }, [form]);
-
   const {
     isLoading: loadingCollections,
     data: collections,
@@ -186,7 +171,7 @@ const BookmarkForm = () => {
     queryFn: async () => {
       const response = await getCollections(
         config?.baseUrl as string,
-        config?.apiKey as string
+        config?.apiKey as string,
       );
 
       return response.data.response.sort((a, b) => {
@@ -201,7 +186,7 @@ const BookmarkForm = () => {
     queryFn: async () =>
       await getShouldUseTagSearch(
         config?.baseUrl as string,
-        config?.apiKey as string
+        config?.apiKey as string,
       ),
     enabled: isConfigured && openOptions,
   });
@@ -220,13 +205,13 @@ const BookmarkForm = () => {
         config?.baseUrl as string,
         config?.apiKey as string,
         pageParam,
-        effectiveTagSearch
+        effectiveTagSearch,
       );
     },
     {
       getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
       enabled: isConfigured && openOptions,
-    }
+    },
   );
 
   const tags = useMemo(() => {
@@ -237,208 +222,193 @@ const BookmarkForm = () => {
     );
   }, [tagsData]);
 
+  const hasCollectionError = Boolean(collectionError);
+  const hasTagsError = Boolean(tagsError);
+
+  const collectionItems = Array.isArray(collections)
+    ? collections.map(
+        (collection: {
+          name: string;
+          id: number;
+          ownerId: number;
+          pathname: string;
+        }) => (
+          <CommandItem
+            value={collection.name}
+            key={collection.id}
+            className="flex min-h-11 cursor-pointer flex-col items-start justify-center rounded-lg px-3 py-2"
+            onSelect={() => {
+              form.setValue('collection', {
+                ownerId: collection.ownerId,
+                id: collection.id,
+                name: collection.name,
+              });
+              setOpenCollections(false);
+            }}
+          >
+            <p className="text-sm font-medium">{collection.name}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {collection.pathname}
+            </p>
+          </CommandItem>
+        ),
+      )
+    : null;
+
   return (
     <div>
       <Form {...form}>
         <form
-          onSubmit={handleSubmit((e) => onSubmit(e))}
-          className="py-1 space-y-5"
+          onSubmit={handleSubmit((values) => onSubmit(values))}
+          className="space-y-4"
         >
-          {collectionError ? (
-            <p className="text-red-600">
-              There was an error, please make sure the website is available.
-            </p>
-          ) : null}
+          {hasCollectionError && (
+            <div
+              className="rounded-xl border border-destructive/25 bg-destructive/8 px-3 py-2.5 text-xs leading-5 text-destructive"
+              role="alert"
+            >
+              GoreeCloud Bookmarks could not load collections. Check that the configured
+              instance is available.
+            </div>
+          )}
+
           <FormField
             control={control}
             name="collection"
             render={({ field }) => (
-              <FormItem className={`my-2`}>
-                <FormLabel>Collection</FormLabel>
-                <div className="min-w-full inset-x-0">
-                  <Popover
-                    open={openCollections}
-                    onOpenChange={setOpenCollections}
-                  >
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          aria-expanded={openCollections}
-                          className={
-                            'w-full justify-between bg-neutral-100 dark:bg-neutral-900'
-                          }
-                        >
-                          {loadingCollections
-                            ? 'Unorganized'
-                            : field.value?.name
-                            ? collections?.find(
-                                (collection: { name: string }) =>
-                                  collection.name === field.value?.name
-                              )?.name || form.getValues('collection')?.name
-                            : 'Select a collection...'}
-                          <CaretSortIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-
-                    {!openOptions && openCollections ? (
-                      <div
-                        className={`fade-up min-w-full p-0 overflow-y-auto ${
-                          openCollections
-                            ? 'fixed inset-0 w-full h-full z-50 bg-white'
-                            : ''
-                        }`}
+              <FormItem>
+                <FormLabel className="text-xs font-semibold">Collection</FormLabel>
+                <Popover open={openCollections} onOpenChange={setOpenCollections}>
+                  <PopoverTrigger asChild>
+                    <FormControl>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={openCollections}
+                        className="w-full justify-between gap-3 px-3"
                       >
+                        <span className="flex min-w-0 items-center gap-2.5">
+                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                            <FolderOpen className="h-4 w-4" aria-hidden="true" />
+                          </span>
+                          <span className="truncate">
+                            {loadingCollections
+                              ? 'Unorganized'
+                              : field.value?.name
+                                ? collections?.find(
+                                    (collection: { name: string }) =>
+                                      collection.name === field.value?.name,
+                                  )?.name || form.getValues('collection')?.name
+                                : 'Select a collection...'}
+                          </span>
+                        </span>
+                        <CaretSortIcon className="h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </FormControl>
+                  </PopoverTrigger>
+
+                  {!openOptions && openCollections ? (
+                    <div className="fade-up fixed inset-0 z-50 flex h-full w-full flex-col bg-background/95 p-3 text-foreground backdrop-blur-xl">
+                      <div className="mb-3 flex items-center justify-between gap-3 px-1">
+                        <div>
+                          <p className="glaze-kicker">Destination</p>
+                          <h2 className="mt-0.5 text-base font-semibold">
+                            Choose collection
+                          </h2>
+                        </div>
                         <Button
-                          className="absolute top-1 right-1 bg-transparent hover:bg-transparent hover:opacity-50 transition-colors ease-in-out duration-200"
+                          type="button"
+                          variant="ghost"
+                          size="icon"
                           onClick={() => setOpenCollections(false)}
+                          aria-label="Close collection picker"
                         >
-                          <X className={`h-4 w-4 text-black dark:text-white`} />
+                          <X className="h-4 w-4" aria-hidden="true" />
                         </Button>
-                        <Command className="flex-grow min-w-full dropdown-content rounded-none">
-                          <CommandInput
-                            className="min-w-[280px]"
-                            placeholder="Search Collection..."
-                          />
-
-                          {loadingCollections ? (
-                            <p className="w-full text-center my-auto">
-                              Loading...
-                            </p>
-                          ) : (
-                            <>
-                              <CommandEmpty>No Collection found.</CommandEmpty>
-                              {Array.isArray(collections) && (
-                                <CommandGroup className="w-full overflow-y-auto">
-                                  {isLoading ? (
-                                    <CommandItem
-                                      value="Loading collections..."
-                                      key="Loading collections..."
-                                      onSelect={() => {
-                                        form.setValue('collection', {
-                                          name: 'Unorganized',
-                                        });
-                                        setOpenCollections(false);
-                                      }}
-                                    >
-                                      Unorganized
-                                    </CommandItem>
-                                  ) : (
-                                    collections?.map(
-                                      (collection: {
-                                        name: string;
-                                        id: number;
-                                        ownerId: number;
-                                        pathname: string;
-                                      }) => (
-                                        <CommandItem
-                                          value={collection.name}
-                                          key={collection.id}
-                                          className="cursor-pointer flex flex-col items-start justify-start"
-                                          onSelect={() => {
-                                            form.setValue('collection', {
-                                              ownerId: collection.ownerId,
-                                              id: collection.id,
-                                              name: collection.name,
-                                            });
-                                            setOpenCollections(false);
-                                          }}
-                                        >
-                                          <p>{collection.name}</p>
-                                          <p className="text-xs text-neutral-500">
-                                            {collection.pathname}
-                                          </p>
-                                        </CommandItem>
-                                      )
-                                    )
-                                  )}
-                                </CommandGroup>
-                              )}
-                            </>
-                          )}
-                        </Command>
                       </div>
-                    ) : openOptions && openCollections ? (
-                      <PopoverContent
-                        className={`min-w-full p-0 overflow-y-auto max-h-[200px]`}
-                      >
-                        <Command className="flex-grow min-w-full dropdown-content">
-                          <CommandInput
-                            className="min-w-[280px]"
-                            placeholder="Search collection..."
-                          />
-                          <CommandEmpty>No Collection found.</CommandEmpty>
-                          {Array.isArray(collections) && (
-                            <CommandGroup className="w-full">
-                              {isLoading ? (
-                                <CommandItem
-                                  value="Loading collections..."
-                                  key="Loading collections..."
-                                  onSelect={() => {
-                                    form.setValue('collection', {
-                                      name: 'Unorganized',
-                                    });
-                                    setOpenCollections(false);
-                                  }}
-                                >
-                                  Unorganized
-                                </CommandItem>
-                              ) : (
-                                collections?.map(
-                                  (collection: {
-                                    name: string;
-                                    id: number;
-                                    ownerId: number;
-                                    pathname: string;
-                                  }) => (
-                                    <CommandItem
-                                      value={collection.name}
-                                      key={collection.id}
-                                      className="cursor-pointer flex flex-col items-start justify-start"
-                                      onSelect={() => {
-                                        form.setValue('collection', {
-                                          ownerId: collection.ownerId,
-                                          id: collection.id,
-                                          name: collection.name,
-                                        });
-                                        setOpenCollections(false);
-                                      }}
-                                    >
-                                      <p>{collection.name}</p>
-                                      <p className="text-xs text-neutral-500">
-                                        {collection.pathname}
-                                      </p>
-                                    </CommandItem>
-                                  )
-                                )
-                              )}
+
+                      <Command className="glaze-surface flex min-h-0 flex-1 flex-col overflow-hidden">
+                        <CommandInput
+                          className="min-w-[280px]"
+                          placeholder="Search collections..."
+                        />
+                        {loadingCollections ? (
+                          <div className="flex flex-1 items-center justify-center gap-2 text-sm text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                            Loading collections...
+                          </div>
+                        ) : (
+                          <>
+                            <CommandEmpty>No collection found.</CommandEmpty>
+                            <CommandGroup className="w-full flex-1 overflow-y-auto p-1.5">
+                              {collectionItems}
                             </CommandGroup>
-                          )}
-                        </Command>
-                      </PopoverContent>
-                    ) : undefined}
-                  </Popover>
-                </div>
+                          </>
+                        )}
+                      </Command>
+                    </div>
+                  ) : openOptions && openCollections ? (
+                    <PopoverContent className="max-h-[240px] min-w-full overflow-y-auto rounded-xl p-0">
+                      <Command className="min-w-full">
+                        <CommandInput
+                          className="min-w-[280px]"
+                          placeholder="Search collections..."
+                        />
+                        <CommandEmpty>No collection found.</CommandEmpty>
+                        <CommandGroup className="w-full p-1.5">
+                          {collectionItems}
+                        </CommandGroup>
+                      </Command>
+                    </PopoverContent>
+                  ) : undefined}
+                </Popover>
                 <FormMessage />
               </FormItem>
             )}
           />
 
-          {!openOptions && (
-            <Label className="flex items-center gap-2 w-fit cursor-pointer">
-              <Checkbox
-                checked={uploadImage}
-                onCheckedChange={handleCheckedChange}
+          {isDuplicate && (
+            <button
+              type="button"
+              className="flex w-full items-start gap-3 rounded-xl border border-accent/25 bg-accent/8 px-3 py-2.5 text-left transition-colors hover:bg-accent/12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              onClick={() => {
+                window.open(
+                  config?.baseUrl +
+                    '/search?q=' +
+                    encodeURIComponent(`url:${tabInfo?.url}`),
+                  '_blank',
+                );
+                window.close();
+              }}
+            >
+              <ExternalLink
+                className="mt-0.5 h-4 w-4 shrink-0 text-accent"
+                aria-hidden="true"
               />
-              Upload image from browser
-            </Label>
+              <span>
+                <span className="block text-xs font-semibold">Already saved</span>
+                <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
+                  Open the existing bookmark in GoreeCloud Bookmarks.
+                </span>
+              </span>
+            </button>
           )}
 
           {openOptions && (
-            <>
-              {tagsError ? <p>There was an error...</p> : null}
+            <div className="space-y-4 border-t border-border/70 pt-4">
+              <div>
+                <p className="glaze-kicker">Optional details</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  Add organization or context without slowing down ordinary capture.
+                </p>
+              </div>
+
+              {hasTagsError && (
+                <p className="text-xs text-destructive" role="alert">
+                  Tags could not be loaded from the configured instance.
+                </p>
+              )}
+
               <FormField
                 control={control}
                 name="tags"
@@ -453,7 +423,7 @@ const BookmarkForm = () => {
                         hasNextPage={false}
                         isFetchingNextPage={false}
                       />
-                    ) : tagsError ? (
+                    ) : hasTagsError ? (
                       <TagInput
                         onChange={field.onChange}
                         value={[{ name: 'Not found' }]}
@@ -479,28 +449,30 @@ const BookmarkForm = () => {
                   </FormItem>
                 )}
               />
+
               <FormField
                 control={control}
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Name</FormLabel>
+                    <FormLabel>Title</FormLabel>
                     <FormControl>
-                      <Input placeholder="Google..." {...field} />
+                      <Input placeholder="Bookmark title" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
               <FormField
                 control={control}
                 name="description"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Description</FormLabel>
+                    <FormLabel>Note</FormLabel>
                     <FormControl>
                       <Textarea
-                        placeholder="Description..."
+                        placeholder="Add a note about why you saved this page..."
                         className="resize-none"
                         {...field}
                       />
@@ -509,88 +481,67 @@ const BookmarkForm = () => {
                   </FormItem>
                 )}
               />
-
-              {openOptions && (
-                <Label className="flex items-center gap-2 w-fit cursor-pointer">
-                  <Checkbox
-                    checked={uploadImage}
-                    onCheckedChange={handleCheckedChange}
-                  />
-                  Upload image from browser
-                </Label>
-              )}
-            </>
+            </div>
           )}
 
-          <div className="flex justify-between items-center">
+          <Label className="glaze-soft-surface flex min-h-11 cursor-pointer items-center gap-3 px-3 py-2.5">
+            <Checkbox
+              checked={uploadImage}
+              onCheckedChange={handleCheckedChange}
+              aria-label="Capture an image of this page"
+            />
+            <span className="flex min-w-0 flex-1 items-center gap-2">
+              <ImageIcon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <span>
+                <span className="block text-xs font-medium">Capture page image</span>
+                <span className="block text-[11px] leading-4 text-muted-foreground">
+                  Include a browser-generated image with this save.
+                </span>
+              </span>
+            </span>
+          </Label>
+
+          <div className="flex items-center justify-between gap-2 pt-1">
             <Button
               variant="ghost"
               type="button"
+              className="gap-2"
               onClick={() => setOpenOptions((prevState) => !prevState)}
+              aria-expanded={openOptions}
             >
-              {openOptions ? 'Hide' : 'More'} Options
+              <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+              {openOptions ? 'Fewer options' : 'More options'}
             </Button>
 
-            <Button disabled={isLoading} type="submit">
+            <Button disabled={isLoading} type="submit" className="min-w-24 gap-2">
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <Save className="h-4 w-4" aria-hidden="true" />
+              )}
               Save
             </Button>
           </div>
-
-          {isDuplicate && (
-            <div className="w-fit ml-auto">
-              <a
-                className="text-muted text-xs font-bold text-zinc-600 dark:text-zinc-400 hover:underline cursor-pointer"
-                onClick={(e) => {
-                  e.preventDefault();
-                  window.open(
-                    config?.baseUrl +
-                      '/search?q=' +
-                      encodeURIComponent(`url:${tabInfo?.url}`),
-                    '_blank'
-                  );
-                  window.close();
-                }}
-              >
-                Note: You've already saved this link{' '}
-                <ExternalLink size={16} className="inline-block mb-1" />
-              </a>
-            </div>
-          )}
         </form>
       </Form>
-      <Toaster />
-      {state && (
-        <div className="fixed inset-0 bg-black backdrop-blur-md bg-opacity-50 flex items-center justify-center">
-          <div className="text-white p-4 rounded-md flex flex-col items-center w-fit">
-            <svg
-              className="animate-spin h-10 w-10"
-              viewBox="0 0 24 24"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
-              ></circle>
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-              ></path>
-            </svg>
 
-            <p className="text-xl mt-1">
-              {state === 'capturing'
-                ? 'Capturing the page...'
-                : 'Uploading image...'}
+      <Toaster />
+
+      {state && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-background/75 p-4 backdrop-blur-xl"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="glaze-surface w-full max-w-xs p-5 text-center">
+            <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <Loader2 className="h-6 w-6 animate-spin" aria-hidden="true" />
+            </span>
+            <p className="mt-4 text-base font-semibold">
+              {state === 'capturing' ? 'Capturing this page' : 'Uploading page image'}
             </p>
-            <p className="text-xs text-center max-w-xs">
-              Please do not close this window, this may take a few seconds
-              depending on the size of the page.
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              Keep the popup open while GoreeCloud Bookmarks finishes the capture.
             </p>
           </div>
         </div>

@@ -37,6 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from './ui/Select.tsx';
+import { KeyRound, Link2, LogOut, Save, ShieldCheck } from 'lucide-react';
 
 const OptionsForm = () => {
   const form = useForm<optionsFormValues>({
@@ -108,7 +109,7 @@ const OptionsForm = () => {
         const session = await getSession(
           values.baseUrl,
           values.username,
-          values.password
+          values.password,
         );
 
         if (session.status !== 200) {
@@ -186,132 +187,178 @@ const OptionsForm = () => {
       <Form {...form}>
         <form
           onSubmit={handleSubmit((data) => onSubmit(data))}
-          className="space-y-3 p-2"
+          className="space-y-5"
         >
-          <FormField
-            control={control}
-            name="baseUrl"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Instance URL</FormLabel>
-                <FormDescription>
-                  The HTTPS address of your GoreeCloud Bookmarks instance.
-                </FormDescription>
-                <FormControl>
-                  <Input
-                    placeholder="https://bookmarks.example.com"
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <section>
+            <div className="mb-3 flex items-start gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <Link2 className="h-[1.05rem] w-[1.05rem]" aria-hidden="true" />
+              </span>
+              <div>
+                <p className="text-sm font-semibold">Bookmarks instance</p>
+                <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+                  Use the HTTPS address for the private GoreeCloud Bookmarks service.
+                </p>
+              </div>
+            </div>
 
-          <FormField
-            control={control}
-            name="method"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Authentication Method</FormLabel>
-                <FormDescription>
-                  Choose how this extension should authenticate to your instance.
-                </FormDescription>
-                <FormControl>
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger className="w-full justify-between bg-neutral-100 dark:bg-neutral-900 outline-none focus:outline-none ring-0 focus:ring-0">
-                      <SelectValue placeholder="Select authentication method" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="username">
-                        Username and Password
-                      </SelectItem>
-                      <SelectItem value="apiKey">API Key</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          {method === 'apiKey' ? (
             <FormField
               control={control}
-              name="apiKey"
+              name="baseUrl"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>API Key</FormLabel>
-                  <FormDescription>
-                    Enter the API key or access token for your GoreeCloud Bookmarks account.
-                  </FormDescription>
+                  <FormLabel>Instance URL</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="Your API Key"
+                      inputMode="url"
+                      autoComplete="url"
+                      placeholder="https://bookmarks.goreecloud.com"
                       {...field}
-                      type="password"
                     />
                   </FormControl>
+                  <FormDescription>
+                    The extension sends bookmark requests only to the instance configured here.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
-          ) : (
-            <>
-              <FormField
-                control={control}
-                name="username"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Username or Email</FormLabel>
-                    <FormDescription>
-                      Your GoreeCloud Bookmarks username or email address.
-                    </FormDescription>
-                    <FormControl>
-                      <Input placeholder="username" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Password</FormLabel>
-                    <FormDescription>
-                      Password for your GoreeCloud Bookmarks account.
-                    </FormDescription>
-                    <FormControl>
-                      <Input
-                        placeholder="••••••••••••••"
-                        {...field}
-                        type="password"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </>
-          )}
+          </section>
 
-          <div className="flex justify-between">
-            <div>
-              {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment */}
-              {/*@ts-ignore*/}
-              <Button
-                type="button"
-                className="mb-2"
-                onClick={() => onReset()}
-                disabled={resetLoading}
-              >
-                Reset
-              </Button>
+          <div className="h-px bg-border/70" />
+
+          <section>
+            <div className="mb-3 flex items-start gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <KeyRound className="h-[1.05rem] w-[1.05rem]" aria-hidden="true" />
+              </span>
+              <div>
+                <p className="text-sm font-semibold">Authentication</p>
+                <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
+                  Choose the approved account method for this browser profile.
+                </p>
+              </div>
             </div>
-            <Button disabled={isLoading} type="submit">
-              Save
+
+            <div className="space-y-4">
+              <FormField
+                control={control}
+                name="method"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Authentication method</FormLabel>
+                    <FormControl>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select authentication method" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="username">
+                            Username and password
+                          </SelectItem>
+                          <SelectItem value="apiKey">API key</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                    <FormDescription>
+                      API keys are preferred when the server provides an appropriately scoped,
+                      revocable token.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {method === 'apiKey' ? (
+                <FormField
+                  control={control}
+                  name="apiKey"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>API key</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Paste your API key"
+                          {...field}
+                          type="password"
+                          autoComplete="off"
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Treat this value as sensitive authentication material and revoke it if
+                        this browser profile is no longer trusted.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <FormField
+                    control={control}
+                    name="username"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Username or email</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="username"
+                            {...field}
+                            autoComplete="username"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Password</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="••••••••••••••"
+                            {...field}
+                            type="password"
+                            autoComplete="current-password"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              )}
+            </div>
+          </section>
+
+          <div className="glaze-soft-surface flex items-start gap-3 p-3.5">
+            <ShieldCheck
+              className="mt-0.5 h-[1.05rem] w-[1.05rem] shrink-0 text-primary"
+              aria-hidden="true"
+            />
+            <p className="text-xs leading-5 text-muted-foreground">
+              This screen changes extension-local connection settings only. It does not publish
+              a service, change GoreeCloud networking, or approve production deployment.
+            </p>
+          </div>
+
+          <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:items-center sm:justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onReset()}
+              disabled={resetLoading}
+              className="gap-2"
+            >
+              <LogOut className="h-4 w-4" aria-hidden="true" />
+              Disconnect
+            </Button>
+            <Button disabled={isLoading} type="submit" className="gap-2">
+              <Save className="h-4 w-4" aria-hidden="true" />
+              Save connection
             </Button>
           </div>
         </form>
