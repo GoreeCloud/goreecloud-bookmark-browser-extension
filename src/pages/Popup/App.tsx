@@ -34,13 +34,14 @@ function App() {
               target="_blank"
               referrerPolicy="no-referrer"
               className="hover:opacity-80 duration-200 rounded ease-in-out"
+              aria-label="Open GoreeCloud Bookmarks"
             >
               <img
-                src="./128.png"
+                src="./goreecloud-bookmarks.svg"
                 height="30px"
                 width="30px"
-                className="rounded"
-                alt="Linkwarden Logo"
+                className="rounded-lg"
+                alt="GoreeCloud Bookmarks"
               />
             </a>
             <h1 className="text-lg">Add Link</h1>
@@ -52,6 +53,7 @@ function App() {
               size="icon"
               className="ring-0 focus:ring-0 outline-none focus:outline-none ring-offset-0 focus:ring-offset-0 focus-visible:ring-offset-0 focus-visible:ring-0 focus-visible:outline-none"
               onClick={openOptions}
+              aria-label="Open GoreeCloud Bookmarks extension settings"
             >
               <Settings className="h-[1.2rem] w-[1.2rem] transition-colors" />
             </Button>
