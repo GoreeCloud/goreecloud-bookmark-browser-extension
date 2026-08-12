@@ -26,40 +26,55 @@ function App() {
   return (
     <WholeContainer>
       <Container>
-        <div className="flex justify-between w-full items-center">
-          <div className="flex space-x-2 w-full items-center">
-            <a
-              href={baseUrl}
-              rel="noopener"
-              target="_blank"
-              referrerPolicy="no-referrer"
-              className="hover:opacity-80 duration-200 rounded ease-in-out"
-              aria-label="Open GoreeCloud Bookmarks"
-            >
-              <img
-                src="./goreecloud-bookmarks.svg"
-                height="30px"
-                width="30px"
-                className="rounded-lg"
-                alt="GoreeCloud Bookmarks"
-              />
-            </a>
-            <h1 className="text-lg">Add Link</h1>
-          </div>
-          <div className="flex items-center justify-center space-x-2">
+        <header className="glaze-surface flex items-center justify-between gap-3 px-3.5 py-3">
+          <a
+            href={baseUrl}
+            rel="noopener"
+            target="_blank"
+            referrerPolicy="no-referrer"
+            className="group flex min-w-0 items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            aria-label="Open GoreeCloud Bookmarks"
+          >
+            <img
+              src="./goreecloud-bookmarks.svg"
+              height="38px"
+              width="38px"
+              className="rounded-xl shadow-sm transition-transform duration-150 group-hover:scale-[1.03]"
+              alt=""
+              aria-hidden="true"
+            />
+            <div className="min-w-0">
+              <p className="glaze-kicker">GoreeCloud Bookmarks</p>
+              <h1 className="truncate text-[15px] font-semibold tracking-[-0.01em]">
+                Save this page
+              </h1>
+            </div>
+          </a>
+
+          <div className="flex shrink-0 items-center gap-1">
             <ModeToggle />
             <Button
               variant="ghost"
               size="icon"
-              className="ring-0 focus:ring-0 outline-none focus:outline-none ring-offset-0 focus:ring-offset-0 focus-visible:ring-offset-0 focus-visible:ring-0 focus-visible:outline-none"
               onClick={openOptions}
               aria-label="Open GoreeCloud Bookmarks extension settings"
+              title="Extension settings"
             >
-              <Settings className="h-[1.2rem] w-[1.2rem] transition-colors" />
+              <Settings className="h-[1.15rem] w-[1.15rem]" aria-hidden="true" />
             </Button>
           </div>
-        </div>
-        <BookmarkForm />
+        </header>
+
+        <main className="glaze-surface p-4">
+          <div className="mb-3">
+            <p className="text-xs leading-5 text-muted-foreground">
+              Save the current page to your private library. Choose a collection now,
+              or open more options for tags and notes.
+            </p>
+          </div>
+          <BookmarkForm />
+        </main>
+
         <NotConfigured open={!isAllConfigured} />
       </Container>
     </WholeContainer>
