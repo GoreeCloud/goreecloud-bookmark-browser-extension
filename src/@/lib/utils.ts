@@ -1,7 +1,5 @@
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { checkLinkExists } from './actions/links.ts';
-import { getConfig } from './config.ts';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -12,6 +10,18 @@ export interface TabInfo {
   title: string;
 }
 
+type StorageAreaLike = {
+  get: (keys: string | string[]) => Promise<Record<string, unknown>>;
+  set: (items: Record<string, unknown>) => Promise<void>;
+  remove: (keys: string | string[]) => Promise<void>;
+};
+
+type PermissionsApiLike = {
+  request: (permissions: { origins?: string[] }) => Promise<boolean>;
+  contains: (permissions: { origins?: string[] }) => Promise<boolean>;
+  remove: (permissions: { origins?: string[] }) => Promise<boolean>;
+};
+
 export async function getCurrentTabInfo(): Promise<{
   id: number | undefined;
   title: string | undefined;
@@ -21,36 +31,46 @@ export async function getCurrentTabInfo(): Promise<{
     active: true,
     currentWindow: true,
   });
-  const { id, url, title } = tabs[0];
-  return { id, url, title };
+  const tab = tabs[0];
+  return {
+    id: tab?.id,
+    url: tab?.url,
+    title: tab?.title,
+  };
 }
 
 export function getBrowser() {
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  //@ts-ignore
+  // @ts-ignore
   return typeof browser !== 'undefined' ? browser : chrome;
 }
 
-export function getChromeStorage() {
-  return typeof chrome !== 'undefined' && !!chrome.storage;
+function getLocalStorageArea(): StorageAreaLike {
+  const api = getBrowser() as unknown as {
+    storage?: {
+      local?: StorageAreaLike;
+    };
+  };
+  const storageArea = api.storage?.local;
+
+  if (!storageArea) {
+    throw new Error('Browser storage.local is not available.');
+  }
+
+  return storageArea;
 }
 
 export async function getStorageItem(key: string) {
-  if (getChromeStorage()) {
-    const result = await getBrowser().storage.local.get([key]);
-    return result[key];
-  } else {
-    return getBrowser().storage.local.get(key);
-  }
+  const result = await getLocalStorageArea().get([key]);
+  return result[key];
 }
 
 export async function setStorageItem(key: string, value: string) {
-  if (getChromeStorage()) {
-    return await chrome.storage.local.set({ [key]: value });
-  } else {
-    await getBrowser().storage.local.set({ [key]: value });
-    return Promise.resolve();
-  }
+  await getLocalStorageArea().set({ [key]: value });
+}
+
+export async function removeStorageItem(key: string) {
+  await getLocalStorageArea().remove(key);
 }
 
 export function openOptions() {
@@ -78,31 +98,70 @@ export function hasAPI(api: string): boolean {
   return typeof obj !== 'undefined';
 }
 
-export async function updateBadge(tabId: number | undefined) {
+export function getInstancePermissionPattern(baseUrl: string): string {
+  const url = new URL(baseUrl);
+
+  if (url.protocol !== 'https:') {
+    throw new Error('GoreeCloud Bookmarks requires an HTTPS instance URL.');
+  }
+
+  return `https://${url.hostname}/*`;
+}
+
+function getPermissionsApi(): PermissionsApiLike {
+  const api = (getBrowser() as unknown as { permissions?: PermissionsApiLike })
+    .permissions;
+
+  if (!api) {
+    throw new Error('Browser runtime permissions are not available.');
+  }
+
+  return api;
+}
+
+export async function requestInstancePermission(baseUrl: string) {
+  return await getPermissionsApi().request({
+    origins: [getInstancePermissionPattern(baseUrl)],
+  });
+}
+
+export async function hasInstancePermission(baseUrl: string) {
+  return await getPermissionsApi().contains({
+    origins: [getInstancePermissionPattern(baseUrl)],
+  });
+}
+
+export async function removeInstancePermission(baseUrl: string) {
+  return await getPermissionsApi().remove({
+    origins: [getInstancePermissionPattern(baseUrl)],
+  });
+}
+
+export async function updateBadge(
+  tabId: number | undefined,
+  isSaved = false,
+) {
   if (!tabId) return;
 
-  const browser = getBrowser();
-  const cachedConfig = await getConfig();
-  const linkExists = await checkLinkExists(
-    cachedConfig.baseUrl,
-    cachedConfig.apiKey
-  );
-  if (linkExists) {
-    if (browser.action) {
-      browser.action.setBadgeText({ tabId, text: '✓' });
-      browser.action.setBadgeBackgroundColor({ tabId, color: '#98c0ff' });
-    } else {
-      browser.browserAction.setBadgeText({ tabId, text: '✓' });
-      browser.browserAction.setBadgeBackgroundColor({
+  const browserApi = getBrowser();
+  const text = isSaved ? '✓' : '';
+
+  if (browserApi.action) {
+    await browserApi.action.setBadgeText({ tabId, text });
+    if (isSaved) {
+      await browserApi.action.setBadgeBackgroundColor({
         tabId,
         color: '#98c0ff',
       });
     }
-  } else {
-    if (browser.action) {
-      browser.action.setBadgeText({ tabId, text: '' });
-    } else {
-      browser.browserAction.setBadgeText({ tabId, text: '' });
-    }
+    return;
+  }
+
+  await browserApi.browserAction.setBadgeText({ tabId, text });
+  if (isSaved) {
+    await browserApi.browserAction.setBadgeBackgroundColor({
+      tabId,
+      color: '#98c0ff',
+    });
   }
 }

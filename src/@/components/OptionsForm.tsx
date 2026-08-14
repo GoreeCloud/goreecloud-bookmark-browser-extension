@@ -1,5 +1,3 @@
-// ./OptionsForm.tsx
-
 import {
   Form,
   FormControl,
@@ -22,14 +20,19 @@ import { useEffect } from 'react';
 import {
   clearConfig,
   getConfig,
-  isConfigured,
+  getOrCreateClientId,
   saveConfig,
 } from '../lib/config.ts';
 import { Toaster } from './ui/Toaster.tsx';
 import { toast } from '../../hooks/use-toast.ts';
 import { AxiosError } from 'axios';
 import { clearBookmarksMetadata } from '../lib/cache.ts';
-import { getSession } from '../lib/auth/auth.ts';
+import { getSession, revokeCurrentSession } from '../lib/auth/auth.ts';
+import {
+  getInstancePermissionPattern,
+  removeInstancePermission,
+  requestInstancePermission,
+} from '../lib/utils.ts';
 import {
   Select,
   SelectContent,
@@ -39,156 +42,253 @@ import {
 } from './ui/Select.tsx';
 import { KeyRound, Link2, LogOut, Save, ShieldCheck } from 'lucide-react';
 
+const DEFAULT_FORM_VALUES: optionsFormValues = {
+  baseUrl: '',
+  method: 'username',
+  username: '',
+  password: '',
+  apiKey: '',
+  syncBookmarks: false,
+  defaultCollection: 'Unorganized',
+};
+
 const OptionsForm = () => {
   const form = useForm<optionsFormValues>({
     resolver: zodResolver(optionsFormSchema),
-    defaultValues: {
-      baseUrl: '',
-      method: 'username',
-      username: '',
-      password: '',
-      apiKey: '',
-      syncBookmarks: false,
-      defaultCollection: 'Unorganized',
-    },
+    defaultValues: DEFAULT_FORM_VALUES,
   });
 
   const { mutate: onReset, isLoading: resetLoading } = useMutation({
     mutationFn: async () => {
-      const configured = await isConfigured();
+      const config = await getConfig();
+      let revocationStatus:
+        | 'revoked'
+        | 'not-found'
+        | 'manual'
+        | 'failed'
+        | 'none' = 'none';
 
-      if (!configured) {
-        return new Error('Not configured');
+      if (
+        config.authSource === 'session' &&
+        config.baseUrl &&
+        config.apiKey
+      ) {
+        try {
+          revocationStatus = (await revokeCurrentSession(
+            config.baseUrl,
+            config.apiKey,
+          ))
+            ? 'revoked'
+            : 'not-found';
+        } catch {
+          revocationStatus = 'failed';
+        }
+      } else if (
+        config.authSource === 'apiKey' ||
+        config.authSource === 'legacy'
+      ) {
+        revocationStatus = 'manual';
       }
 
-      return;
+      await clearConfig();
+      await clearBookmarksMetadata();
+
+      if (config.baseUrl) {
+        try {
+          await removeInstancePermission(config.baseUrl);
+        } catch {
+          // The local secret is already cleared. Permission cleanup is best effort.
+        }
+      }
+
+      return revocationStatus;
     },
     onError: () => {
       toast({
-        title: 'Error',
-        description:
-          "Either you didn't configure the extension or there was an error while trying to log out. Please try again.",
+        title: 'Disconnect failed',
+        description: 'The extension could not clear its local connection state.',
         variant: 'destructive',
       });
-      return;
     },
-    onSuccess: async () => {
-      form.reset({
-        baseUrl: '',
-        method: 'username',
-        username: '',
-        password: '',
-        apiKey: '',
-        syncBookmarks: false,
-        defaultCollection: 'Unorganized',
+    onSuccess: (revocationStatus) => {
+      form.reset(DEFAULT_FORM_VALUES);
+
+      const description =
+        revocationStatus === 'revoked'
+          ? 'The dedicated browser session was revoked and local connection data was cleared.'
+          : revocationStatus === 'manual'
+            ? 'Local access was removed. Revoke the API key in GoreeCloud Bookmarks if it should no longer remain valid.'
+            : revocationStatus === 'failed'
+              ? 'Local access was removed, but remote session revocation could not be confirmed. Revoke the browser session from GoreeCloud Bookmarks.'
+              : revocationStatus === 'not-found'
+                ? 'Local access was removed. The browser session was already inactive or unavailable.'
+                : 'Local connection data was cleared.';
+
+      toast({
+        title: 'Disconnected',
+        description,
       });
-      await clearConfig();
-      await clearBookmarksMetadata();
-      return;
     },
   });
 
   const { mutate: onSubmit, isLoading } = useMutation({
     mutationFn: async (values: optionsFormValues) => {
-      values.baseUrl = values.baseUrl.replace(/\/$/, '');
+      const previousConfig = await getConfig();
+      const baseUrl = values.baseUrl.replace(/\/+$/, '');
 
       if (values.method === 'apiKey') {
         return {
           ...values,
+          baseUrl,
+          previousConfig,
+          authSource: 'apiKey' as const,
+          sessionName: undefined,
           data: {
             response: {
-              token: values.apiKey,
+              token: values.apiKey as string,
             },
-          } as {
-            response: {
-              token: string;
-            };
-          },
-        };
-      } else {
-        const session = await getSession(
-          values.baseUrl,
-          values.username,
-          values.password,
-        );
-
-        if (session.status !== 200) {
-          throw new Error('Invalid credentials');
-        }
-
-        return {
-          ...values,
-          data: session.data as {
-            response: {
-              token: string;
-            };
           },
         };
       }
+
+      const clientId = await getOrCreateClientId();
+      const sessionName = `GoreeCloud Bookmarks Firefox ${clientId.slice(0, 8)}`;
+      const session = await getSession(
+        baseUrl,
+        values.username,
+        values.password,
+        sessionName,
+      );
+
+      if (session.status !== 200) {
+        throw new Error('Invalid credentials');
+      }
+
+      return {
+        ...values,
+        baseUrl,
+        previousConfig,
+        authSource: 'session' as const,
+        sessionName,
+        data: session.data as {
+          response: {
+            token: string;
+          };
+        },
+      };
     },
     onError: (error) => {
-      if (error instanceof AxiosError) {
-        if (error.response?.status === 401) {
-          toast({
-            title: 'Error',
-            description: 'Invalid credentials or API Key',
-            variant: 'destructive',
-          });
-        } else {
-          toast({
-            title: 'Error',
-            description: 'Something went wrong, try again please.',
-            variant: 'destructive',
-          });
-        }
-      } else {
+      if (error instanceof AxiosError && error.response?.status === 401) {
         toast({
-          title: 'Error',
-          description: 'Something went wrong, check your values are correct.',
+          title: 'Connection failed',
+          description: 'Invalid credentials or API key.',
           variant: 'destructive',
         });
+        return;
       }
+
+      toast({
+        title: 'Connection failed',
+        description: 'Check the instance address and authentication details, then try again.',
+        variant: 'destructive',
+      });
     },
     onSuccess: async (values) => {
+      const newToken = values.data.response.token;
+      const previous = values.previousConfig;
+
+      if (
+        previous.authSource === 'session' &&
+        previous.baseUrl &&
+        previous.apiKey
+      ) {
+        try {
+          const previousPattern = getInstancePermissionPattern(previous.baseUrl);
+          const newPattern = getInstancePermissionPattern(values.baseUrl);
+          if (previousPattern !== newPattern) {
+            await revokeCurrentSession(previous.baseUrl, previous.apiKey);
+          }
+        } catch {
+          // The old session remains independently revocable from the web application.
+        }
+      }
+
       await saveConfig({
         baseUrl: values.baseUrl,
         defaultCollection: values.defaultCollection,
-        syncBookmarks: values.syncBookmarks,
-        apiKey:
-          values.method === 'apiKey' && values.apiKey
-            ? values.apiKey
-            : values.data.response.token,
+        syncBookmarks: false,
+        apiKey: newToken,
+        authSource: values.authSource,
+        sessionName: values.sessionName,
       });
 
+      if (previous.baseUrl) {
+        try {
+          const previousPattern = getInstancePermissionPattern(previous.baseUrl);
+          const newPattern = getInstancePermissionPattern(values.baseUrl);
+          if (previousPattern !== newPattern) {
+            await removeInstancePermission(previous.baseUrl);
+          }
+        } catch {
+          // Permission cleanup is best effort after a successful new connection.
+        }
+      }
+
       toast({
-        title: 'Saved',
+        title: 'Connected',
         description:
-          'Your settings have been saved, you can now close this tab.',
-        variant: 'default',
+          values.authSource === 'session'
+            ? 'A dedicated 30-day browser session is active. Reconnect to renew it; your password was not stored.'
+            : 'The API key is stored only in this browser profile and can be revoked from GoreeCloud Bookmarks.',
       });
     },
   });
 
   useEffect(() => {
     (async () => {
-      const configured = await isConfigured();
-      if (configured) {
-        const cachedOptions = await getConfig();
-        form.reset(cachedOptions);
-      }
+      const cached = await getConfig();
+      form.reset({
+        ...DEFAULT_FORM_VALUES,
+        baseUrl: cached.baseUrl,
+        defaultCollection: cached.defaultCollection,
+        method: cached.authSource === 'apiKey' ? 'apiKey' : 'username',
+      });
     })();
   }, [form]);
 
   const { handleSubmit, control, watch } = form;
   const method = watch('method');
 
+  const submitWithPermission = handleSubmit(async (values) => {
+    const baseUrl = values.baseUrl.replace(/\/+$/, '');
+
+    try {
+      const granted = await requestInstancePermission(baseUrl);
+      if (!granted) {
+        toast({
+          title: 'Permission required',
+          description:
+            'Allow access to this Bookmarks instance so the extension can send user-requested bookmark actions to it.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    } catch {
+      toast({
+        title: 'Permission request failed',
+        description: 'Use a valid HTTPS GoreeCloud Bookmarks instance address.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    onSubmit({ ...values, baseUrl });
+  });
+
   return (
     <div>
       <Form {...form}>
-        <form
-          onSubmit={handleSubmit((data) => onSubmit(data))}
-          className="space-y-5"
-        >
+        <form onSubmit={submitWithPermission} className="space-y-5">
           <section>
             <div className="mb-3 flex items-start gap-3">
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -197,7 +297,7 @@ const OptionsForm = () => {
               <div>
                 <p className="text-sm font-semibold">Bookmarks instance</p>
                 <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
-                  Use the HTTPS address for the private GoreeCloud Bookmarks service.
+                  The extension requests access only to the HTTPS instance you approve here.
                 </p>
               </div>
             </div>
@@ -217,7 +317,7 @@ const OptionsForm = () => {
                     />
                   </FormControl>
                   <FormDescription>
-                    The extension sends bookmark requests only to the instance configured here.
+                    Saving the connection may trigger Firefox to request access to this exact host.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -235,7 +335,7 @@ const OptionsForm = () => {
               <div>
                 <p className="text-sm font-semibold">Authentication</p>
                 <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
-                  Choose the approved account method for this browser profile.
+                  Use a dedicated browser session when possible; API keys remain supported for compatibility.
                 </p>
               </div>
             </div>
@@ -253,16 +353,13 @@ const OptionsForm = () => {
                           <SelectValue placeholder="Select authentication method" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="username">
-                            Username and password
-                          </SelectItem>
+                          <SelectItem value="username">Username and password</SelectItem>
                           <SelectItem value="apiKey">API key</SelectItem>
                         </SelectContent>
                       </Select>
                     </FormControl>
                     <FormDescription>
-                      API keys are preferred when the server provides an appropriately scoped,
-                      revocable token.
+                      Username/password is exchanged for a purpose-scoped 30-day browser session. Reconnect when it expires; the password itself is not persisted.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -285,8 +382,7 @@ const OptionsForm = () => {
                         />
                       </FormControl>
                       <FormDescription>
-                        Treat this value as sensitive authentication material and revoke it if
-                        this browser profile is no longer trusted.
+                        The key is stored in extension-local browser storage. Disconnect clears the local copy; revoke the key in Bookmarks to invalidate it remotely.
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -301,11 +397,7 @@ const OptionsForm = () => {
                       <FormItem>
                         <FormLabel>Username or email</FormLabel>
                         <FormControl>
-                          <Input
-                            placeholder="username"
-                            {...field}
-                            autoComplete="username"
-                          />
+                          <Input placeholder="username" {...field} autoComplete="username" />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -325,6 +417,7 @@ const OptionsForm = () => {
                             autoComplete="current-password"
                           />
                         </FormControl>
+                        <FormDescription>The password is used only for the session exchange and is not stored.</FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -340,8 +433,7 @@ const OptionsForm = () => {
               aria-hidden="true"
             />
             <p className="text-xs leading-5 text-muted-foreground">
-              This screen changes extension-local connection settings only. It does not publish
-              a service, change GoreeCloud networking, or approve production deployment.
+              GoreeCloud Bookmarks no longer requests blanket access to all websites. Page access is temporary and user-initiated; server access is granted separately for the configured HTTPS host, and browser sessions are limited to the extension API actions they require.
             </p>
           </div>
 

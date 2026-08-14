@@ -123,7 +123,7 @@ const BookmarkForm = () => {
     },
     onSuccess: () => {
       getCurrentTabInfo().then(({ id }) => {
-        updateBadge(id);
+        updateBadge(id, true);
       });
       setTimeout(() => {
         window.close();
@@ -143,8 +143,6 @@ const BookmarkForm = () => {
       setTabInfo(t);
       setConfig(c);
 
-      updateBadge(t.id);
-
       form.setValue('url', t.url ? t.url : '');
       form.setValue('name', t.title ? t.title : '');
       form.setValue('collection', {
@@ -152,9 +150,17 @@ const BookmarkForm = () => {
       });
 
       const configured = await getIsConfigured();
+      setIsConfigured(configured);
+      setIsDuplicate(false);
+      await updateBadge(t.id, false);
+
+      if (!configured || !t.url || !/^https?:\/\//.test(t.url)) {
+        return;
+      }
+
       const duplicate = await checkLinkExists(c.baseUrl, c.apiKey);
       setIsDuplicate(duplicate);
-      setIsConfigured(configured);
+      await updateBadge(t.id, duplicate);
     };
 
     setTabInformation();
