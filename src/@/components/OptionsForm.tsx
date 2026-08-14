@@ -27,11 +27,7 @@ import { Toaster } from './ui/Toaster.tsx';
 import { toast } from '../../hooks/use-toast.ts';
 import { AxiosError } from 'axios';
 import { clearBookmarksMetadata } from '../lib/cache.ts';
-import {
-  getSession,
-  revokeNamedSession,
-  revokeStaleNamedSessions,
-} from '../lib/auth/auth.ts';
+import { getSession, revokeCurrentSession } from '../lib/auth/auth.ts';
 import {
   getInstancePermissionPattern,
   removeInstancePermission,
@@ -75,14 +71,12 @@ const OptionsForm = () => {
       if (
         config.authSource === 'session' &&
         config.baseUrl &&
-        config.apiKey &&
-        config.sessionName
+        config.apiKey
       ) {
         try {
-          revocationStatus = (await revokeNamedSession(
+          revocationStatus = (await revokeCurrentSession(
             config.baseUrl,
             config.apiKey,
-            config.sessionName,
           ))
             ? 'revoked'
             : 'not-found';
@@ -127,7 +121,7 @@ const OptionsForm = () => {
             : revocationStatus === 'failed'
               ? 'Local access was removed, but remote session revocation could not be confirmed. Revoke the browser session from GoreeCloud Bookmarks.'
               : revocationStatus === 'not-found'
-                ? 'Local access was removed. No matching active browser session was found on the server.'
+                ? 'Local access was removed. The browser session was already inactive or unavailable.'
                 : 'Local connection data was cleared.';
 
       toast({
@@ -201,35 +195,18 @@ const OptionsForm = () => {
     },
     onSuccess: async (values) => {
       const newToken = values.data.response.token;
-
-      if (values.authSource === 'session' && values.sessionName) {
-        try {
-          await revokeStaleNamedSessions(
-            values.baseUrl,
-            newToken,
-            values.sessionName,
-          );
-        } catch {
-          // A stale-session cleanup failure should not discard a newly valid login.
-        }
-      }
-
       const previous = values.previousConfig;
+
       if (
         previous.authSource === 'session' &&
         previous.baseUrl &&
-        previous.apiKey &&
-        previous.sessionName
+        previous.apiKey
       ) {
         try {
           const previousPattern = getInstancePermissionPattern(previous.baseUrl);
           const newPattern = getInstancePermissionPattern(values.baseUrl);
           if (previousPattern !== newPattern) {
-            await revokeNamedSession(
-              previous.baseUrl,
-              previous.apiKey,
-              previous.sessionName,
-            );
+            await revokeCurrentSession(previous.baseUrl, previous.apiKey);
           }
         } catch {
           // The old session remains independently revocable from the web application.
@@ -261,7 +238,7 @@ const OptionsForm = () => {
         title: 'Connected',
         description:
           values.authSource === 'session'
-            ? 'A dedicated revocable browser session is active. Your password was not stored.'
+            ? 'A dedicated 30-day browser session is active. Reconnect to renew it; your password was not stored.'
             : 'The API key is stored only in this browser profile and can be revoked from GoreeCloud Bookmarks.',
       });
     },
@@ -382,7 +359,7 @@ const OptionsForm = () => {
                       </Select>
                     </FormControl>
                     <FormDescription>
-                      Username/password is exchanged for a named revocable browser session; the password itself is not persisted.
+                      Username/password is exchanged for a purpose-scoped 30-day browser session. Reconnect when it expires; the password itself is not persisted.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -456,7 +433,7 @@ const OptionsForm = () => {
               aria-hidden="true"
             />
             <p className="text-xs leading-5 text-muted-foreground">
-              GoreeCloud Bookmarks no longer requests blanket access to all websites. Page access is temporary and user-initiated; server access is granted separately for the configured HTTPS host.
+              GoreeCloud Bookmarks no longer requests blanket access to all websites. Page access is temporary and user-initiated; server access is granted separately for the configured HTTPS host, and browser sessions are limited to the extension API actions they require.
             </p>
           </div>
 
