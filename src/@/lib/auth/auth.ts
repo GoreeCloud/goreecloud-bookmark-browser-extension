@@ -15,34 +15,9 @@ export interface DataLogout {
   json: boolean;
 }
 
-type AccessTokenSummary = {
-  id: number;
-  name: string;
-  isSession: boolean;
-  expires: string;
-  createdAt: string;
-};
-
 const authHeaders = (apiKey: string) => ({
   Authorization: `Bearer ${apiKey}`,
 });
-
-async function getActiveTokens(baseUrl: string, apiKey: string) {
-  const response = await axios.get(`${baseUrl}/api/v1/tokens`, {
-    headers: authHeaders(apiKey),
-  });
-  return response.data.response as AccessTokenSummary[];
-}
-
-async function revokeTokenById(
-  baseUrl: string,
-  apiKey: string,
-  tokenId: number,
-) {
-  await axios.delete(`${baseUrl}/api/v1/tokens/${tokenId}`, {
-    headers: authHeaders(apiKey),
-  });
-}
 
 export async function getCsrfTokenFetch(url: string): Promise<string> {
   const token = await fetch(`${url}/api/v1/auth/csrf`);
@@ -80,6 +55,7 @@ export async function getSession(
       username,
       password,
       sessionName,
+      purpose: 'browser_extension',
     },
     {
       headers: {
@@ -89,47 +65,12 @@ export async function getSession(
   );
 }
 
-export async function revokeNamedSession(
-  baseUrl: string,
-  apiKey: string,
-  sessionName: string,
-): Promise<boolean> {
-  const tokens = await getActiveTokens(baseUrl, apiKey);
-  const matchingSessions = tokens
-    .filter((token) => token.isSession && token.name === sessionName)
-    .sort(
-      (left, right) =>
-        new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
-    );
+export async function revokeCurrentSession(baseUrl: string, apiKey: string) {
+  const response = await axios.delete(`${baseUrl}/api/v1/session`, {
+    headers: authHeaders(apiKey),
+  });
 
-  const currentSession = matchingSessions[0];
-  if (!currentSession) {
-    return false;
-  }
-
-  await revokeTokenById(baseUrl, apiKey, currentSession.id);
-  return true;
-}
-
-export async function revokeStaleNamedSessions(
-  baseUrl: string,
-  apiKey: string,
-  sessionName: string,
-): Promise<number> {
-  const tokens = await getActiveTokens(baseUrl, apiKey);
-  const matchingSessions = tokens
-    .filter((token) => token.isSession && token.name === sessionName)
-    .sort(
-      (left, right) =>
-        new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
-    );
-
-  const staleSessions = matchingSessions.slice(1);
-  for (const token of staleSessions) {
-    await revokeTokenById(baseUrl, apiKey, token.id);
-  }
-
-  return staleSessions.length;
+  return response.data.response?.revoked === true;
 }
 
 export async function getSessionFetch(url: string) {
