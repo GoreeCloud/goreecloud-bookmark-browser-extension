@@ -123,12 +123,15 @@ The background worker now avoids passive tab-change listeners. Duplicate checkin
 ### Username/password connection
 
 1. Firefox requests permission for the configured HTTPS Bookmarks host during **Save connection**.
-2. The username and password are sent directly to the configured Bookmarks session endpoint.
-3. The server returns a bearer token associated with a named browser session.
-4. The password is not persisted by the extension.
-5. The returned bearer token is stored in the extension's separated authentication storage entry.
-6. Reconnecting with the same browser installation attempts to revoke older duplicate named sessions after the new session is established.
-7. Disconnect attempts to revoke the named session through the existing Bookmarks token API before clearing local authentication state.
+2. The username and password are sent directly to the configured Bookmarks session endpoint with `purpose: browser_extension` and a stable per-installation session name.
+3. The server replaces any older active session with the same user and installation name before issuing the new credential.
+4. The server returns a purpose-scoped bearer token with a 30-day lifetime.
+5. The password is not persisted by the extension.
+6. The returned bearer token is stored in the extension's separated authentication storage entry.
+7. The scoped session may call only the API routes required for the approved browser-extension workflow: configuration/version read, collection read, tag read, duplicate search, bookmark create/update/delete, user-requested screenshot upload, and self-revocation.
+8. The scoped session cannot enumerate or revoke other account tokens and is denied access to unrelated protected APIs.
+9. Disconnect calls `DELETE /api/v1/session`, which revokes only the bearer session currently held by the extension, before clearing local authentication state.
+10. When the 30-day session expires, the user reconnects with username/password to receive a replacement credential. The password is again used only for the exchange and is not stored.
 
 The stable client identifier is not an authentication secret. It exists only to distinguish this extension installation's server-side session name.
 
@@ -138,23 +141,26 @@ A user may still provide an existing API key for compatibility.
 
 - The key is treated as sensitive authentication material.
 - Disconnect clears the local copy and removes the configured host permission.
-- The extension cannot reliably identify the server-side token record that corresponds to an arbitrary pasted key because the existing token-list API does not expose the token identifier carried inside the bearer value.
+- Manually created API tokens retain their existing server permissions and lifetime because they are not browser-extension sessions.
 - Therefore the user must revoke a manually supplied API key from GoreeCloud Bookmarks when remote invalidation is required.
 
-## Server-side token limitation that remains
+## Server-side scoped session implementation
 
-The inherited Bookmarks session endpoint creates a revocable access-token record, and the server rejects a bearer token after that record is revoked. This satisfies the basic revocation requirement for extension-created sessions.
+The companion server branch `security/browser-extension-session-scope` implements the extension credential boundary without a database migration and without changing ordinary web sessions or manually created API tokens.
 
-However, the current server-generated session token is not a dedicated limited-purpose browser-extension scope and is configured with an extremely long expiration. This branch does not represent that as a completed least-privilege token design.
+Implemented controls:
 
-Required follow-up server work:
+- the extension explicitly requests `purpose: browser_extension` during credential exchange;
+- the purpose is carried in the signed session JWT;
+- extension sessions expire after 30 days instead of inheriting the legacy effectively permanent session lifetime;
+- reconnecting with the same stable installation name revokes older active sessions for that installation before creating the new one;
+- authorization is deny-by-default for browser-extension sessions and allows only the documented extension API routes;
+- account-wide `/api/v1/tokens` listing and token-by-ID deletion are outside the extension scope;
+- `DELETE /api/v1/session` provides bearer-token self-revocation without requiring token inventory access;
+- ordinary sessions and manual API tokens remain on the existing authorization path;
+- focused regression tests verify allowed and denied extension routes.
 
-- define a browser-extension token/session type with only the API capabilities required by approved extension features;
-- use a materially shorter and reviewable lifetime;
-- preserve independent per-device or per-extension-installation revocation;
-- make renewal/expiration behavior explicit;
-- keep ordinary application passwords out of extension storage;
-- add authorization regression tests for extension-token scope.
+This resolves the server-side least-privilege gap identified in the initial Firefox permission review. The server and extension changes must still be validated together before merge or distribution.
 
 ## Content Security Policy
 
@@ -173,29 +179,33 @@ The existing Firefox signing identity is intentionally unchanged in this branch.
 
 ## Manual Firefox security acceptance
 
-Before distribution, validate all of the following in Firefox against an approved non-production or production-representative Bookmarks instance:
+Before distribution, validate all of the following in Firefox against an approved non-production or production-representative Bookmarks instance built with the companion scoped-session branch:
 
 1. Fresh installation does not request blanket all-sites access.
 2. The extension is not configured until a Bookmarks server is explicitly approved.
 3. Non-HTTPS instance URLs are rejected.
 4. Saving a connection requests only the configured Bookmarks HTTPS host.
 5. Username/password login succeeds and the password is not present in extension-local persisted configuration.
-6. The extension-created browser session is visible in the Bookmarks token/session inventory with its unique GoreeCloud browser-session name.
-7. Reconnecting does not accumulate unnecessary older sessions with the same installation name.
-8. Disconnect revokes an extension-created session on the server and clears the local token.
-9. A revoked extension-created session can no longer call protected Bookmarks APIs.
-10. Manual API-key disconnect clears the local key and clearly requires server-side revocation when remote invalidation is desired.
-11. The configured optional host permission is removed on disconnect.
-12. Opening unrelated websites without invoking the extension does not send their URLs to the Bookmarks server.
-13. Opening the popup performs duplicate detection only as part of that explicit action.
-14. Current-page save succeeds.
-15. Collection, tags, and note capture continue to work.
-16. The single page context-menu save action succeeds.
-17. Page-image capture succeeds only after the user enables it.
-18. Full-page capture cleanup restores temporary page-style changes after success or failure.
-19. Light/dark and keyboard-accessibility behavior remains intact.
-20. Lint and production build both pass on the exact reviewed commit.
+6. The extension-created browser session is visible in the Bookmarks token/session inventory with its unique GoreeCloud browser-session name and a 30-day expiration.
+7. Reconnecting replaces the prior active session for the same installation rather than accumulating duplicate active sessions.
+8. The extension-created credential can read config, collections, and tags; search for the active URL; create/update/delete bookmarks; and upload a user-requested screenshot.
+9. The same credential is denied access to `/api/v1/tokens` and unrelated protected APIs.
+10. Disconnect revokes the current extension-created session on the server and clears the local token.
+11. A revoked extension-created session can no longer call protected Bookmarks APIs.
+12. An expired extension-created session requires reconnecting to renew access.
+13. Manual API-key disconnect clears the local key and clearly requires server-side revocation when remote invalidation is desired.
+14. The configured optional host permission is removed on disconnect.
+15. Opening unrelated websites without invoking the extension does not send their URLs to the Bookmarks server.
+16. Opening the popup performs duplicate detection only as part of that explicit action.
+17. Current-page save succeeds.
+18. Collection, tags, and note capture continue to work.
+19. The single page context-menu save action succeeds.
+20. Page-image capture succeeds only after the user enables it.
+21. Full-page capture cleanup restores temporary page-style changes after success or failure.
+22. Light/dark and keyboard-accessibility behavior remains intact.
+23. Server authorization regression tests pass on the exact reviewed server commit.
+24. Extension lint and production build both pass on the exact reviewed extension commit.
 
 ## Release gate
 
-This security branch does not approve merge, Firefox signing, browser-store submission, or production deployment. Distribution remains blocked until the manual Firefox security acceptance above is completed and the remaining server-side scoped-token decision is explicitly resolved or accepted for the MVP.
+This security branch does not approve merge, Firefox signing, browser-store submission, or production deployment. Distribution remains blocked until the companion server scoped-session branch and this extension branch are validated together, all automated checks are green, and the manual Firefox security acceptance above is completed.
