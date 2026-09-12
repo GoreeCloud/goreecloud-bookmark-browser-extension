@@ -7,22 +7,23 @@ const App = () => {
   return (
     <WholeContainer className="max-h-[750px]">
       <Container>
-        <div className="justify-center items-center p-2 flex">
-          <h1 className="text-lg">Options configuration</h1>
+        <div className="justify-center items-center p-2 flex flex-col gap-2">
+          <img
+            src="/goreecloud-bookmarks.svg"
+            width="48px"
+            height="48px"
+            className="rounded-xl"
+            alt="GoreeCloud Bookmarks"
+          />
+          <h1 className="text-lg font-medium">
+            GoreeCloud Bookmarks Extension
+          </h1>
         </div>
         <div>
           <Separator />
           <p className="text-base pt-2">
-            This is a extension for the{' '}
-            <a
-              href="https://github.com/linkwarden/linkwarden"
-              rel="noopener"
-              target="_blank"
-              className="text-blue-400 hover:text-blue-500 duration-100 hover:underline"
-            >
-              Linkwarden
-            </a>
-            . Please fill out the following text boxes accordingly.
+            Connect this extension to your private GoreeCloud Bookmarks instance.
+            Enter the instance address and authentication details below.
           </p>
         </div>
         <OptionsForm />

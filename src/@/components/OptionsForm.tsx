@@ -36,14 +36,14 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from './ui/Select.tsx'; // Import the Select component
+} from './ui/Select.tsx';
 
 const OptionsForm = () => {
   const form = useForm<optionsFormValues>({
     resolver: zodResolver(optionsFormSchema),
     defaultValues: {
-      baseUrl: 'https://cloud.linkwarden.app',
-      method: 'username', // Default to 'username'
+      baseUrl: '',
+      method: 'username',
       username: '',
       password: '',
       apiKey: '',
@@ -72,7 +72,6 @@ const OptionsForm = () => {
       return;
     },
     onSuccess: async () => {
-      // Reset the form
       form.reset({
         baseUrl: '',
         method: 'username',
@@ -91,7 +90,6 @@ const OptionsForm = () => {
   const { mutate: onSubmit, isLoading } = useMutation({
     mutationFn: async (values: optionsFormValues) => {
       values.baseUrl = values.baseUrl.replace(/\/$/, '');
-      // Do API call to test the connection and save the values
 
       if (values.method === 'apiKey') {
         return {
@@ -107,7 +105,6 @@ const OptionsForm = () => {
           },
         };
       } else {
-        // Handle Username/Password authentication
         const session = await getSession(
           values.baseUrl,
           values.username,
@@ -129,7 +126,6 @@ const OptionsForm = () => {
       }
     },
     onError: (error) => {
-      // Handle errors appropriately
       if (error instanceof AxiosError) {
         if (error.response?.status === 401) {
           toast({
@@ -183,7 +179,7 @@ const OptionsForm = () => {
   }, [form]);
 
   const { handleSubmit, control, watch } = form;
-  const method = watch('method'); // Watch the 'method' field
+  const method = watch('method');
 
   return (
     <div>
@@ -197,13 +193,13 @@ const OptionsForm = () => {
             name="baseUrl"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>URL</FormLabel>
+                <FormLabel>Instance URL</FormLabel>
                 <FormDescription>
-                  The address of the Linkwarden instance.
+                  The HTTPS address of your GoreeCloud Bookmarks instance.
                 </FormDescription>
                 <FormControl>
                   <Input
-                    placeholder="https://cloud.linkwarden.app"
+                    placeholder="https://bookmarks.example.com"
                     {...field}
                   />
                 </FormControl>
@@ -212,15 +208,14 @@ const OptionsForm = () => {
             )}
           />
 
-          {/* Authentication Method Select */}
           <FormField
             control={control}
             name="method"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Method</FormLabel>
+                <FormLabel>Authentication Method</FormLabel>
                 <FormDescription>
-                  Choose your preferred authentication method.
+                  Choose how this extension should authenticate to your instance.
                 </FormDescription>
                 <FormControl>
                   <Select value={field.value} onValueChange={field.onChange}>
@@ -240,7 +235,6 @@ const OptionsForm = () => {
             )}
           />
 
-          {/* Conditionally render API Key or Username/Password fields */}
           {method === 'apiKey' ? (
             <FormField
               control={control}
@@ -249,7 +243,7 @@ const OptionsForm = () => {
                 <FormItem>
                   <FormLabel>API Key</FormLabel>
                   <FormDescription>
-                    Enter your Linkwarden API Key.
+                    Enter the API key or access token for your GoreeCloud Bookmarks account.
                   </FormDescription>
                   <FormControl>
                     <Input
@@ -271,10 +265,10 @@ const OptionsForm = () => {
                   <FormItem>
                     <FormLabel>Username or Email</FormLabel>
                     <FormDescription>
-                      Your Linkwarden Username or Email.
+                      Your GoreeCloud Bookmarks username or email address.
                     </FormDescription>
                     <FormControl>
-                      <Input placeholder="johnny" {...field} />
+                      <Input placeholder="username" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -287,7 +281,7 @@ const OptionsForm = () => {
                   <FormItem>
                     <FormLabel>Password</FormLabel>
                     <FormDescription>
-                      Password for your Linkwarden account.
+                      Password for your GoreeCloud Bookmarks account.
                     </FormDescription>
                     <FormControl>
                       <Input
@@ -302,48 +296,6 @@ const OptionsForm = () => {
               />
             </>
           )}
-
-          {/* Commented out fields */}
-          {/* 
-          <FormField
-            control={control}
-            name="defaultCollection"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Default collection</FormLabel>
-                <FormDescription>
-                  Default collection to add bookmarks to.
-                </FormDescription>
-                <FormControl>
-                  <Input placeholder="Unorganized" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          */}
-
-          {/* 
-          <FormField
-            control={control}
-            name="syncBookmarks"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Sync Bookmarks (Experimental)</FormLabel>
-                <FormDescription>
-                  Sync your bookmarks with Linkwarden.
-                </FormDescription>
-                <FormControl>
-                  <Checkbox
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          */}
 
           <div className="flex justify-between">
             <div>

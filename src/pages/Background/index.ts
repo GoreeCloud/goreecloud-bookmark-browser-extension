@@ -219,20 +219,20 @@ async function genericOnClick(
           !tab.url.startsWith('about:')
         ) {
           try {
-            if (new URL(tab.url))
-              await postLinkFetch(
-                config.baseUrl,
-                {
-                  url: tab.url,
-                  name: tab.title || '',
-                  description: tab.title || '',
-                  collection: {
-                    name: config.defaultCollection,
-                  },
-                  tags: [],
+            new URL(tab.url);
+            await postLinkFetch(
+              config.baseUrl,
+              {
+                url: tab.url,
+                name: tab.title || '',
+                description: tab.title || '',
+                collection: {
+                  name: config.defaultCollection,
                 },
-                config.apiKey
-              );
+                tags: [],
+              },
+              config.apiKey
+            );
           } catch (error) {
             console.error(`Failed to save tab: ${tab.url}`, error);
           }
@@ -283,7 +283,7 @@ browser.runtime.onInstalled.addListener(async function () {
     ? ['page', 'selection', 'link']
     : ['page', 'selection', 'link', 'editable', 'image', 'video', 'audio'];
   for (const context of contexts) {
-    const title: string = 'Add link to Linkwarden';
+    const title: string = 'Add link to GoreeCloud Bookmarks';
     browser.contextMenus.create({
       title: title,
       contexts: [context],
@@ -292,7 +292,7 @@ browser.runtime.onInstalled.addListener(async function () {
   }
   browser.contextMenus.create({
     id: 'save-all-tabs',
-    title: 'Save all tabs to Linkwarden',
+    title: 'Save all tabs to GoreeCloud Bookmarks',
     contexts: ['page'],
   });
 
@@ -348,7 +348,7 @@ if (hasAPI('omnibox.onInputStarted')) {
   browser.omnibox.onInputStarted.addListener(async () => {
     const configured = await isConfigured();
     const description = configured
-      ? 'Search links in linkwarden'
+      ? 'Search links in GoreeCloud Bookmarks'
       : 'Please configure the extension first';
 
     browser.omnibox.setDefaultSuggestion({

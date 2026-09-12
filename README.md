@@ -1,57 +1,67 @@
-# Linkwarden Browser Extension
+# GoreeCloud Bookmarks Browser Extension
 
-The Official Browser Extension for [Linkwarden](https://github.com/linkwarden/linkwarden).
+GoreeCloud Bookmarks Browser Extension is the browser-integration component for the GoreeCloud Bookmarks project. It is maintained as a fork of the official [Linkwarden browser extension](https://github.com/linkwarden/browser-extension).
 
-## Features
+> [!IMPORTANT]
+> This GoreeCloud fork is currently under development. It has not yet been approved for production use, signed as a GoreeCloud Firefox release, or published to a browser extension store.
 
-- Add and organize new links to Linkwarden with a single click.
-- Upload screenshots of the current page to Linkwarden.
-- Save all tabs in the current window to Linkwarden.
-- Sign in using API key or Username/Password.
+## Current upstream base
 
-![Image](/assets/linkwarden-extension.png)
+- Upstream: `linkwarden/browser-extension`
+- Baseline version: `1.5.4`
+- Baseline commit: `3175f85191bab62d84873c46e54b32ab958f9be8`
+- License: MIT
 
-## Installation
+See [`GOREECLOUD.md`](./GOREECLOUD.md) for the GoreeCloud fork record, maintenance policy, security boundary, and packaging constraints.
 
-You can get the browser extension from both the Chrome Web Store and Firefox Add-ons:
+## Intended GoreeCloud role
 
-<a href="https://chrome.google.com/webstore/detail/linkwarden/pnidmkljnhbjfffciajlcpeldoljnidn"><img src="/assets/chrome.png" alt="Chrome Web Store"></a>
-<a href="https://addons.mozilla.org/en-US/firefox/addon/linkwarden"><img src="/assets/firefox.png" alt="Firefox Add-ons"></a>
+The extension is intended to provide fast, user-initiated capture into a private GoreeCloud Bookmarks account. The initial GoreeCloud target includes:
 
-## Issues and Feature Requests
+- Save the current page.
+- Choose a destination collection.
+- Add tags.
+- Add an optional note.
+- Display the page title and URL before saving.
+- Detect an already-saved URL when practical.
+- Open GoreeCloud Bookmarks.
+- Authenticate securely to an approved private GoreeCloud Bookmarks deployment.
 
-We decided to keep the issues and feature requests in the main repository to keep everything in one place. Please report any issues or feature requests from the official repository, starting the title with "[Browser Extension]" [here](https://github.com/linkwarden/linkwarden/issues/new/choose).
+Later opportunities may include selected-text capture, context-menu actions, saving all open tabs, keyboard shortcuts, highlight capture, Firefox sidebar integration, and a quick Read Later action.
 
-## Build From Source
+## Development boundary
+
+The first identity pass changes user-visible GoreeCloud naming while intentionally preserving upstream technical identifiers that require a separate packaging or signing decision. In particular, Firefox signing identity, browser-store identifiers, update metadata, authentication behavior, and production server configuration must not be changed accidentally as part of visual rebranding.
+
+## Build from source
 
 ### Requirements
 
-- LTS NodeJS 18.x.x
-- NPM Version 9.x.x
+The upstream project currently documents the following build prerequisites:
+
+- LTS Node.js 18.x
+- npm 9.x
 - Bash
 - Git
 
-### Step 1: Clone this repo
+### Clone this fork
 
-Clone this repository by running the following in your terminal:
-
-```
-git clone https://github.com/linkwarden/browser-extension.git
-```
-
-### Step 2: Build
-
-Head to the generated folder:
-
-```
-cd browser-extension
+```bash
+git clone https://github.com/GoreeCloud/goreecloud-bookmark-browser-extension.git
+cd goreecloud-bookmark-browser-extension
 ```
 
-And run:
+### Build
 
-```
+```bash
 npm install
 npm run build
 ```
 
-After the above command, use the `/dist` folder as an unpacked extension in your browser.
+After a successful build, the generated `/dist` directory can be used for development testing as an unpacked/temporary extension according to the browser's development-extension workflow.
+
+Build, lint, installation, authentication, capture, logout, and revocation testing remain required before a GoreeCloud release is approved.
+
+## Upstream attribution
+
+This project is derived from Linkwarden's browser extension. GoreeCloud branding does not remove the upstream project's copyright or MIT license obligations. Required notices and provenance will be preserved as the fork evolves.

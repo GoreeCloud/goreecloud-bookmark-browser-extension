@@ -6,17 +6,20 @@ const NotConfigured: FC<{ open: boolean }> = ({ open }) => {
   if (!open) return null;
 
   return (
-    <div className="fixed top-0 bottom-0 left-0 right-0 inset-0 bg-white z-10">
+    <div className="fixed top-0 bottom-0 left-0 right-0 inset-0 bg-white dark:bg-zinc-950 z-10">
       <div className="container flex flex-col gap-3 justify-center items-center h-full max-w-lg mx-auto">
         <img
-          src="./128.png"
-          height="40px"
-          width="40px"
-          className="rounded"
-          alt="Linkwarden Logo"
+          src="./goreecloud-bookmarks.svg"
+          height="48px"
+          width="48px"
+          className="rounded-xl"
+          alt="GoreeCloud Bookmarks"
         />
+        <p className="font-semibold text-sm tracking-wide text-zinc-600 dark:text-zinc-300">
+          GoreeCloud Bookmarks
+        </p>
         <h1
-          className="font-medium text-lg text-zinc-700"
+          className="font-medium text-lg text-zinc-700 dark:text-zinc-100"
           style={{ fontSize: '1.65rem' }}
         >
           Initial Setup
